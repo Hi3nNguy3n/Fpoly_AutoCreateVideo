@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.mp4
+*.pdf
+output_videos/
+debug_*.png
+error_*.png
+temp.pdf
+.env

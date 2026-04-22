@@ -1,4 +1,5 @@
 import sys
+import asyncio
 import time
 import os
 import requests
@@ -199,7 +200,6 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=headless, 
-            channel="chrome", 
             slow_mo=400,
             proxy=pw_proxy,
             args=[
@@ -270,17 +270,16 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
                 
                 page.keyboard.press("Escape"); time.sleep(3)
 
-            # Gửi Prompt (Giả lập người gõ từng chữ)
+            # Gửi Prompt (Gõ nhanh hơn nhưng vẫn giữ độ trễ tự nhiên)
             editor = page.locator('div[contenteditable="true"]')
             editor.click()
-            page.keyboard.down("Meta"); page.keyboard.press("a"); page.keyboard.up("Meta"); page.keyboard.press("Backspace")
+            page.keyboard.down("Control"); page.keyboard.press("a"); page.keyboard.up("Control")
+            page.keyboard.press("Backspace")
             
-            # Gõ từng chữ với độ trễ ngẫu nhiên
-            for char in prompt:
-                page.keyboard.type(char)
-                if random.random() > 0.7: time.sleep(random.uniform(0.05, 0.15))
+            # Tăng tốc độ gõ (10-25ms mỗi phím)
+            page.keyboard.type(prompt, delay=random.randint(10, 25))
                 
-            time.sleep(2); page.keyboard.press("Enter")
+            time.sleep(1); page.keyboard.press("Enter")
             send = page.locator("button").filter(has_text="arrow_forward").first
             if send.is_visible(): send.click()
             log_func(f">>> [Luồng {index}] Đã gửi xong prompt. Đang render...")
@@ -300,58 +299,91 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
                         log_func(f">>> [Luồng {index}] Video đang tạo... ({elapsed}s)")
                         last_log_time = elapsed
 
-                    # Tìm video card
-                    video_selector = "video[src*='getMediaUrlRedirect'], video[src*='storage.googleapis.com'], i:has-text('play_circle')"
-                    target_el = page.locator(video_selector).first
+                    # Tìm video card (Cập nhật nhiều selector hơn)
+                    video_selectors = [
+                        "video[src*='getMediaUrlRedirect']", 
+                        "video[src*='storage.googleapis.com']", 
+                        "i:has-text('play_circle')",
+                        "div[role='button']:has(video)",
+                        ".video-card" # Selector dự phòng
+                    ]
+                    target_el = None
+                    for sel in video_selectors:
+                        try:
+                            el = page.locator(sel).first
+                            if el.is_visible(timeout=500):
+                                target_el = el
+                                break
+                        except: continue
 
-                    if target_el.is_visible(timeout=500):
+                    if target_el:
                         # Kiểm tra render xong chưa (không còn nội dung % loading)
                         is_ready = page.evaluate("""
                             () => {
                                 const bodyText = document.body.innerText;
-                                return !/\\d+%/.test(bodyText) && !bodyText.includes('Creating');
+                                return !/\\d+%/.test(bodyText) && !bodyText.includes('Creating') && !bodyText.includes('Đang tạo');
                             }
                         """)
 
                         if is_ready and not video_clicked:
-                            log_func(f"🚀 [Luồng {index}] Video ĐÃ XONG! Đang click vào video...")
-                            time.sleep(1) # Chờ UI ổn định
+                            log_func(f"🚀 [Luồng {index}] Video ĐÃ XONG! Đang tiến hành mở trình phát...")
+                            time.sleep(1.5) # Chờ UI ổn định
                             
                             try:
                                 target_el.scroll_into_view_if_needed()
+                                # Thử click nhiều lần hoặc dùng tọa độ
                                 box = target_el.bounding_box()
                                 if box:
-                                    cent_x = box['x'] + box['width'] / 2
-                                    cent_y = box['y'] + box['height'] / 2
+                                    # Click vào tâm và các góc để đảm bảo trúng
+                                    points = [
+                                        (box['x'] + box['width']/2, box['y'] + box['height']/2),
+                                        (box['x'] + 10, box['y'] + 10)
+                                    ]
+                                    for px, py in points:
+                                        page.mouse.move(px, py)
+                                        page.mouse.click(px, py)
+                                        time.sleep(0.5)
                                     
-                                    # Di chuyển và Click vật lý vào tâm video
-                                    page.mouse.move(cent_x, cent_y)
-                                    time.sleep(0.1)
-                                    page.mouse.click(cent_x, cent_y)
-                                    
-                                    # Chụp ảnh debug ngay sau khi click
-                                    shot_name = f"debug_click_{index}_{int(time.time())}.png"
-                                    page.screenshot(path=os.path.join(OUTPUT_DIR, shot_name))
-                                    log_func(f">>> [Luồng {index}] Đã bấm vào tâm video tại: ({int(cent_x)}, {int(cent_y)})")
+                                    log_func(f">>> [Luồng {index}] Đã bấm vật lý vào vùng video.")
                                 else:
                                     target_el.click(force=True)
+                                
+                                # Tắt phụ đề một cách triệt để
+                                try:
+                                    cc_selectors = [
+                                        "button[aria-label*='caption']",
+                                        "button[aria-label*='phụ đề']",
+                                        "button:has-text('CC')",
+                                        "[aria-label*='subtitle']",
+                                        ".ytp-subtitles-button"
+                                    ]
+                                    for selector in cc_selectors:
+                                        cc_btn = page.locator(selector).first
+                                        if cc_btn.is_visible(timeout=500):
+                                            cc_btn.click()
+                                            log_func(f">>> [Luồng {index}] Đã kích hoạt lệnh tắt phụ đề.")
+                                            time.sleep(0.5)
+                                            break
+                                except: pass
+
                             except Exception as e:
                                 log_func(f"⚠ [Luồng {index}] Click lỗi: {e}")
                             
                             video_clicked = True
-                            time.sleep(3.5) # Chờ player mở hoàn toàn
+                            time.sleep(4)
 
-                        # Nếu đã click mà vẫn chưa thấy player (nút Download), cho phép click lại
+                        # Nếu đã click, tiến hành tải
                         if video_clicked:
                             downloaded_file = perform_smart_download(page, log_func, index, cookies_raw, proxy_url)
                             if downloaded_file:
-                                break
+                                log_func(f"✅ [Luồng {index}] Hoàn thành: {downloaded_file}")
+                                return downloaded_file # Thoát ngay lập tức khi xong
                             else:
                                 log_func(f"⚠ [Luồng {index}] Player chưa mở hoặc kẹt, chuẩn bị click lại...")
-                                video_clicked = False # Reset để vòng sau click lại
+                                video_clicked = False
                                 time.sleep(1)
 
-                except Exception:
+                except Exception as e:
                     pass
                 time.sleep(1.5)
                 

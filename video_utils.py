@@ -1,5 +1,4 @@
 import PyPDF2
-from moviepy import VideoFileClip, concatenate_videoclips
 import os
 
 def extract_text_from_pdf(pdf_path):
@@ -16,6 +15,7 @@ def extract_text_from_pdf(pdf_path):
 
 def merge_videos(video_paths, output_path):
     """Ghép danh sách video thành một video duy nhất"""
+    from moviepy import VideoFileClip, concatenate_videoclips
     clips = []
     try:
         # Load các video clip

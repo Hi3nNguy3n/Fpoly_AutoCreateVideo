@@ -1,4 +1,11 @@
 import streamlit as st
+import asyncio
+import sys
+
+# Khắc phục lỗi NotImplementedError trên Windows khi dùng Playwright
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import time
 import os
 import google.generativeai as genai
@@ -15,7 +22,7 @@ st.markdown("Biến PDF thành phim 5 phân cảnh với chế độ **Chạy tu
 # Sidebar: Cấu hình
 with st.sidebar:
     st.header("⚙️ Cấu hình hệ thống")
-    gemini_key = st.text_input("Gemini API Key", type="password", value="AIzaSyAmKsiZWOQLl5lNR4XelCOtGL9aw-7iu_o")
+    gemini_key = st.text_input("Gemini API Key", type="password", value="AIzaSyAvJ3-XgXjslomajNpa9guA0xXwfvABip4")
     cookies_input = st.text_area("Google Labs Cookies", height=200, placeholder="Dán cookies của bạn vào đây...")
     proxies_input = st.text_area("Danh sách Proxy", height=100, placeholder="Mỗi dòng 1 Proxy hoặc cách nhau bằng dấu phẩy\nVD: http://user:pass@ip:port")
     
@@ -42,23 +49,25 @@ if uploaded_file and gemini_key:
                 genai.configure(api_key=gemini_key)
                 model = genai.GenerativeModel('gemini-2.5-flash-lite')
                 prompt_ai = f"""
-                Analyze the following PDF content and generate a professional 5-scene 'Project Introduction' video script.
-                For each scene, write a descriptive English prompt that includes a Vietnamese narrator voiceover.
+                Role: Professional cinematic scriptwriter.
+                Task: Create a 5-scene video script. 
                 
-                Structure the prompts like this:
-                - Scene description in English... A narrator speaks in Vietnamese: "[Vietnamese dialogue summarizing the scene]".
+                STRICT RULE: The visual description MUST NOT mention any text, letters, logos, or brand names.
                 
-                The 5 scenes must cover:
-                1. Project Overview & Problem.
-                2. Core Solution/Innovation.
-                3. Methodology/Technology.
-                4. Major Results/Achievements.
-                5. Conclusion & Contact.
-
-                Output exactly 5 lines (one prompt per line).
+                EXAMPLE OF CORRECT FORMAT:
+                A futuristic laboratory with blue glowing lights and high-tech equipment, cinematic lighting, no text on screen... A narrator speaks in Vietnamese: "Giải pháp công nghệ vượt trội cho tương lai."
+                
+                FORMAT TO FOLLOW:
+                [English visual description. NO LOGOS, NO TEXT, NO LETTERS]... A narrator speaks in Vietnamese: "[Concise dialogue]".
+                
+                SCENE STRUCTURE:
+                1. Hook | 2. Solution | 3. Tech | 4. Impact | 5. Vision.
+                
                 CRITICAL RULES:
-                - Output ONLY the prompts. NO numbering, NO headers, NO markdown.
-                - The dialogue MUST be in Vietnamese.
+                - Output exactly 5 lines. No numbering.
+                - NEVER include words like "logo", "sign", "text", or "name" in visuals.
+                - ABSOLUTELY NO subtitles or captions instructions. 
+                - Keep each line under 30 words.
                 
                 Content:
                 {st.session_state.pdf_text[:4000]}
