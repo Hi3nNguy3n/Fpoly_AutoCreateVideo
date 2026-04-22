@@ -22,7 +22,7 @@ st.markdown("Biến PDF thành phim 5 phân cảnh với chế độ **Chạy tu
 # Sidebar: Cấu hình
 with st.sidebar:
     st.header("⚙️ Cấu hình hệ thống")
-    gemini_key = st.text_input("Gemini API Key", type="password", value="AIzaSyAvJ3-XgXjslomajNpa9guA0xXwfvABip4")
+    gemini_key = st.text_input("Gemini API Key", type="password", placeholder="Dán Gemini API Key của bạn vào đây...")
     cookies_input = st.text_area("Google Labs Cookies", height=200, placeholder="Dán cookies của bạn vào đây...")
     proxies_input = st.text_area("Danh sách Proxy", height=100, placeholder="Mỗi dòng 1 Proxy hoặc cách nhau bằng dấu phẩy\nVD: http://user:pass@ip:port")
     
@@ -49,25 +49,25 @@ if uploaded_file and gemini_key:
                 genai.configure(api_key=gemini_key)
                 model = genai.GenerativeModel('gemini-2.5-flash-lite')
                 prompt_ai = f"""
-                Role: Professional cinematic scriptwriter.
-                Task: Create a 5-scene video script. 
+                Role: Master cinematic director and documentary scriptwriter.
+                Task: Create a 5-scene video script based on the provided text.
                 
-                STRICT RULE: The visual description MUST NOT mention any text, letters, logos, or brand names.
+                You must extract the core meaning of the text and translate it into dynamic, highly descriptive visual scenes. 
+                DO NOT just copy headings or abstract titles. Describe ACTUAL actions, environments, and subjects.
                 
-                EXAMPLE OF CORRECT FORMAT:
-                A futuristic laboratory with blue glowing lights and high-tech equipment, cinematic lighting, no text on screen... A narrator speaks in Vietnamese: "Giải pháp công nghệ vượt trội cho tương lai."
+                FORMAT TO FOLLOW FOR EACH LINE:
+                [English visual description: Subject + Action + Environment + Camera angle. NO TEXT, NO SUBTITLES] ||| [Vietnamese Narrator: Meaningful, continuous voiceover explaining the scene]
                 
-                FORMAT TO FOLLOW:
-                [English visual description. NO LOGOS, NO TEXT, NO LETTERS]... A narrator speaks in Vietnamese: "[Concise dialogue]".
-                
-                SCENE STRUCTURE:
-                1. Hook | 2. Solution | 3. Tech | 4. Impact | 5. Vision.
+                EXAMPLE:
+                A cheetah sprinting through a dense forest at dawn, cinematic tracking shot, highly detailed, photorealistic, no text on screen. ||| Trong không gian tĩnh lặng, cuộc rượt đuổi tốc độ cao bắt đầu, minh chứng cho sức sống mãnh liệt của tự nhiên.
                 
                 CRITICAL RULES:
-                - Output exactly 5 lines. No numbering.
-                - NEVER include words like "logo", "sign", "text", or "name" in visuals.
-                - ABSOLUTELY NO subtitles or captions instructions. 
-                - Keep each line under 30 words.
+                1. Output exactly 5 lines. No numbering.
+                2. MUST use " ||| " to separate the English visual prompt and the Vietnamese voiceover.
+                3. STRICT ANATOMY & LOGIC: Visuals must be 100% physically accurate and realistic. Do NOT create mutant animals or impossible physics.
+                4. SIMPLE ACTIONS: Focus on ONE main subject doing ONE clear, logical action. If there are predators and prey, clearly define the logic (e.g., predators chase, prey runs). Avoid complex multi-subject interactions to prevent video distortion.
+                5. Do NOT use abstract titles as voiceover. Write a natural, engaging Vietnamese narration.
+                6. Keep the English visual description under 30 words. NO TEXT, NO SUBTITLES.
                 
                 Content:
                 {st.session_state.pdf_text[:4000]}

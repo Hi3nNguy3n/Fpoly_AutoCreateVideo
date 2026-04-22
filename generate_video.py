@@ -276,8 +276,15 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
             page.keyboard.down("Control"); page.keyboard.press("a"); page.keyboard.up("Control")
             page.keyboard.press("Backspace")
             
-            # Tăng tốc độ gõ (10-25ms mỗi phím)
-            page.keyboard.type(prompt, delay=random.randint(10, 25))
+            # Chặn hoàn toàn lời bình (phần sau |||) để tránh Google tạo phụ đề
+            visual_prompt = prompt.split('|||')[0].strip()
+            # Đề phòng AI lỡ dùng định dạng cũ
+            if 'A narrator' in visual_prompt:
+                visual_prompt = visual_prompt.split('A narrator')[0].strip()
+            elif 'Narrator:' in visual_prompt:
+                visual_prompt = visual_prompt.split('Narrator:')[0].strip()
+                
+            page.keyboard.type(visual_prompt, delay=random.randint(30, 80))
                 
             time.sleep(1); page.keyboard.press("Enter")
             send = page.locator("button").filter(has_text="arrow_forward").first
@@ -298,6 +305,29 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
                     if elapsed - last_log_time >= 30 and elapsed > 0:
                         log_func(f">>> [Luồng {index}] Video đang tạo... ({elapsed}s)")
                         last_log_time = elapsed
+
+                    # Kiểm tra xem có video nào đang hiển thị % tiến độ không
+                    is_generating = page.evaluate("() => { const text = document.body.innerText; return /\\d+%/.test(text) || text.includes('Creating') || text.includes('Đang tạo'); }")
+
+                    if not is_generating:
+                        # PHÁT HIỆN LỖI (Chỉ khi không có video nào đang tạo)
+                        try:
+                            error_selectors = [
+                                "text='Không thành công'",
+                                "text='unusual activity'",
+                                "text='Unsuccessful'"
+                            ]
+                            for err_sel in error_selectors:
+                                if page.locator(err_sel).first.is_visible(timeout=200):
+                                    log_func(f"⚠ [Luồng {index}] Phát hiện thẻ báo lỗi. Đang tự động thử lại...")
+                                    retry_btn = page.locator("button:has(i:has-text('refresh')), button:has(span:has-text('refresh')), button[aria-label*='retry']").first
+                                    if retry_btn.is_visible(timeout=500):
+                                        retry_btn.click()
+                                    else:
+                                        page.keyboard.press("Enter")
+                                    time.sleep(3)
+                                    break
+                        except: pass
 
                     # Tìm video card (Cập nhật nhiều selector hơn)
                     video_selectors = [
