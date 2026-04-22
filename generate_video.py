@@ -276,15 +276,21 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
             page.keyboard.down("Control"); page.keyboard.press("a"); page.keyboard.up("Control")
             page.keyboard.press("Backspace")
             
-            # Chặn hoàn toàn lời bình (phần sau |||) để tránh Google tạo phụ đề
-            visual_prompt = prompt.split('|||')[0].strip()
-            # Đề phòng AI lỡ dùng định dạng cũ
-            if 'A narrator' in visual_prompt:
-                visual_prompt = visual_prompt.split('A narrator')[0].strip()
-            elif 'Narrator:' in visual_prompt:
-                visual_prompt = visual_prompt.split('Narrator:')[0].strip()
-                
-            page.keyboard.type(visual_prompt, delay=random.randint(30, 80))
+            # Xử lý kịch bản trước khi gửi cho Google Veo
+            parts = prompt.split('|||')
+            visual_prompt = parts[0].strip()
+            
+            if len(parts) > 1:
+                voiceover = parts[1].strip()
+                # Cấu trúc lại câu lệnh, TUYỆT ĐỐI KHÔNG DÙNG \n vì Google Labs sẽ nhận diện là phím Enter và gửi luôn bài
+                final_prompt = f"{visual_prompt} STRICT NEGATIVE PROMPT: DO NOT render, draw, or burn any text, letters, captions, or subtitles into the video frames. Audio Voiceover only: {voiceover}"
+            else:
+                final_prompt = prompt
+
+            editor.fill("")
+            # Thêm timeout=120000 (120 giây) vì gõ chậm (60ms/phím) một đoạn dài sẽ dễ vượt quá giới hạn 30 giây mặc định của Playwright
+            editor.type(final_prompt, delay=60, timeout=120000) 
+
                 
             time.sleep(1); page.keyboard.press("Enter")
             send = page.locator("button").filter(has_text="arrow_forward").first

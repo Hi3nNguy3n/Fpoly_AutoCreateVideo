@@ -65,9 +65,9 @@ if uploaded_file and gemini_key:
                 1. Output exactly 5 lines. No numbering.
                 2. MUST use " ||| " to separate the English visual prompt and the Vietnamese voiceover.
                 3. STRICT ANATOMY & LOGIC: Visuals must be 100% physically accurate and realistic. Do NOT create mutant animals or impossible physics.
-                4. SIMPLE ACTIONS: Focus on ONE main subject doing ONE clear, logical action. If there are predators and prey, clearly define the logic (e.g., predators chase, prey runs). Avoid complex multi-subject interactions to prevent video distortion.
+                4. SIMPLE ACTIONS: Focus on ONE main subject doing ONE clear, logical action. Avoid complex multi-subject interactions to prevent video distortion.
                 5. Do NOT use abstract titles as voiceover. Write a natural, engaging Vietnamese narration.
-                6. Keep the English visual description under 30 words. NO TEXT, NO SUBTITLES.
+                6. You MUST physically write the exact words "no text on screen, no subtitles" at the very end of EVERY single English visual description. Do not skip this!
                 
                 Content:
                 {st.session_state.pdf_text[:4000]}
