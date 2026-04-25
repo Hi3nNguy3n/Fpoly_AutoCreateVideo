@@ -288,8 +288,8 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
                 final_prompt = prompt
 
             editor.fill("")
-            # Thêm timeout=120000 (120 giây) vì gõ chậm (60ms/phím) một đoạn dài sẽ dễ vượt quá giới hạn 30 giây mặc định của Playwright
-            editor.type(final_prompt, delay=60, timeout=120000) 
+            # Tăng timeout lên 180 giây (3 phút) vì tốc độ 100ms/phím mất nhiều thời gian để gõ hết kịch bản
+            editor.type(final_prompt, delay=100, timeout=180000) 
 
                 
             time.sleep(1); page.keyboard.press("Enter")

@@ -28,7 +28,7 @@ with st.sidebar:
     
     st.divider()
     st.subheader("🖥️ Chế độ Robot")
-    show_browser = st.toggle("Hiển thị trình duyệt (Visible Mode)", value=True)
+    show_browser = st.toggle("Hiển thị trình duyệt (Visible Mode)", value=False)
     parallel_mode = st.toggle("Chạy song song (Parallel Mode)", value=False)
     st.info("Chế độ chạy tuần tự (1 luồng) là chế độ ổn định nhất hiện tại.")
 
@@ -157,7 +157,8 @@ if st.session_state.scripts:
                 # Kết quả cuối cùng
                 if len(video_files) >= 2:
                     update_logs("\n>>> Đang ghép các phân cảnh thành phim hoàn chỉnh...")
-                    final_path = f"movie_fixed_{int(time.time())}.mp4"
+                    os.makedirs("Final_Videos", exist_ok=True)
+                    final_path = f"Final_Videos/movie_fixed_{int(time.time())}.mp4"
                     merged = merge_videos(video_files, final_path)
                     if merged:
                         st.success("🎉 PHIM ĐÃ SẴN SÀNG!")

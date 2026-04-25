@@ -1,0 +1,8 @@
+ffmpeg
+libgbm-dev
+libnss3
+libasound2
+libxss1
+libxtst6
+libgtk-3-0
+libx11-xcb1

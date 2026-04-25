@@ -1,9 +1,27 @@
+# Folder rác của Node và Python
 node_modules/
 __pycache__/
+.venv/
+env/
+venv/
+
+# Files video và PDF (tránh đẩy file nặng lên git)
 *.mp4
 *.pdf
 output_videos/
+Final_Videos/
+temp.pdf
+
+# Files debug và ảnh lỗi
 debug_*.png
 error_*.png
-temp.pdf
+*.log
+
+# Cấu hình cá nhân
 .env
+.vscode/
+.idea/
+
+# Playwright cache (nếu có ở máy local)
+pw-browsers/
+.cache/

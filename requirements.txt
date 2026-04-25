@@ -1,0 +1,8 @@
+streamlit
+playwright
+playwright-stealth
+google-generativeai
+moviepy
+PyPDF2
+requests
+python-dotenv
