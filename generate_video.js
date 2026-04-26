@@ -36,8 +36,8 @@ function downloadVideo(url, filename) {
 async function run() {
     const promptText = process.argv[2] || "A drone shot of futuristic city";
     console.log(`>>> KHỞI ĐỘNG (FINAL-FIX-STRATEGY) - PROMPT: "${promptText}"`);
-    const browser = await puppeteer.launch({ 
-        headless: false, 
+    const browser = await puppeteer.launch({
+        headless: false,
         protocolTimeout: 300000, // 5 minutes to avoid screenshot timeouts
         args: ['--no-sandbox', '--window-size=1920,1080', '--disable-setuid-sandbox'],
         defaultViewport: null
@@ -83,8 +83,8 @@ async function run() {
                         target.dispatchEvent(new MouseEvent('mouseup', evtProps));
                         target.dispatchEvent(new MouseEvent('click', evtProps));
                         let p = target;
-                        for(let i=0; i<4 && p; i++) {
-                            if(p.getAttribute('role') === 'tab' || p.tagName === 'BUTTON') { p.click(); break; }
+                        for (let i = 0; i < 4 && p; i++) {
+                            if (p.getAttribute('role') === 'tab' || p.tagName === 'BUTTON') { p.click(); break; }
                             p = p.parentElement;
                         }
                         return true;
@@ -104,7 +104,7 @@ async function run() {
         const editorSelector = 'div[contenteditable="true"]';
         await page.waitForSelector(editorSelector);
         await page.click(editorSelector);
-        
+
         // Strategy A: Select All + Backspace
         await page.keyboard.down('Meta');
         await page.keyboard.press('KeyA');
@@ -136,7 +136,7 @@ async function run() {
                 const b = Array.from(document.querySelectorAll('button, [role="button"]')).find(el => el.innerText.includes('arrow_forward') || el.innerHTML.includes('arrow_forward') || el.getAttribute('aria-label')?.toLowerCase().includes('gửi'));
                 if (b) {
                     const r = b.getBoundingClientRect();
-                    return { x: r.x + r.width/2, y: r.y + r.height/2 };
+                    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
                 }
                 return null;
             });
@@ -173,13 +173,13 @@ async function run() {
                 try {
                     await page.screenshot({ path: `verification_${elap}.png` });
                     console.log(`...Giám sát (${elap}s) - verification_${elap}.png`);
-                } catch(e) { console.log(`[Warning] Screenshot failed: ${e.message}`); }
+                } catch (e) { console.log(`[Warning] Screenshot failed: ${e.message}`); }
             }
             await new Promise(r => setTimeout(r, 10000));
         }
     } catch (err) {
         console.error("❌ LỖI:", err.message);
-        try { await page.screenshot({ path: 'fatal_error.png' }); } catch(e) {}
+        try { await page.screenshot({ path: 'fatal_error.png' }); } catch (e) { }
     } finally {
         await browser.close();
         console.log("Trình duyệt đã đóng.");

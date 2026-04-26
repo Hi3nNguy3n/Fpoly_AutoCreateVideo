@@ -183,7 +183,7 @@ def measure_network_profile(log_func=print):
         log_func(f"⚠ Không đo được mạng: {e}")
         return {"speed": "unknown", "latency": 5.0}
 
-def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless=True, network_profile=None, proxy_url=None):
+def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless=True, network_profile=None, proxy_url=None, aspect_ratio="9:16", veo_model="Veo 3.1 - Lite"):
     """Xử lý tạo 1 video duy nhất (phục vụ cho chạy song song)"""
     proxy_log = f" (Proxy: {proxy_url})" if proxy_url else ""
     log_func(f">>> [Luồng {index}] Khởi động robot...{proxy_log}")
@@ -203,27 +203,36 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
             slow_mo=400,
             proxy=pw_proxy,
             args=[
-                '--window-size=1280,800',
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
                 '--disable-blink-features=AutomationControlled',
-                '--disable-features=Translate' # Tắt tính năng dịch thuật
-            ],
-            ignore_default_args=['--enable-automation']
+                '--window-size=1280,800'
+            ]
         )
         context = browser.new_context(
             viewport={'width': 1280, 'height': 800},
-            locale='vi-VN'
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
         )
-        context.add_cookies(parse_cookies(cookies_raw))
+        
+        cookie_list = parse_cookies(cookies_raw)
+        context.add_cookies(cookie_list)
+        
         page = context.new_page()
-        Stealth().apply_stealth_sync(page) # Thêm lớp áo tàng hình chống phát hiện Bot
+        Stealth().apply_stealth_sync(page)
         
         try:
             page.goto(BASE_URL, wait_until='networkidle', timeout=90000)
             
+            # Xử lý modal/dialog nếu có
+            page.evaluate("""() => {
+                const closeBtn = document.querySelector('button[aria-label="Close"], .close-button, [role="dialog"] button');
+                if (closeBtn) closeBtn.click();
+            }""")
+
             # Xóa các thanh dịch thuật hoặc popup gây vướng (nếu có)
             page.evaluate("""
                 () => {
-                    const selectors = ['#google_translate_element', '.goog-te-banner-frame', '#goog-gt-tt', '.translation-bar', 'iframe.goog-te-banner-frame'];
+                    const selectors = ['#google_translate_element', '.goog-te-banner-frame', '#goog-gt-tt', '.translation-bar', 'iframe.goog-te-banner-frame', 'div[class*="Overlay"]', 'div[class*="Backdrop"]'];
                     selectors.forEach(s => {
                         try {
                             const el = document.querySelector(s);
@@ -248,25 +257,29 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
                 pill.click(); time.sleep(4)
                 page.locator("button[role='tab']").filter(has_text="Video").first.click(force=True); time.sleep(2)
                 
-                # Chọn Khung hình 9:16
-                page.locator("button").filter(has_text="9:16").first.click(force=True); time.sleep(1)
+                # CHỌN TỶ LỆ
+                target_ratio = "9:16"
+                if "16:9" in aspect_ratio: target_ratio = "16:9"
+                elif "1:1" in aspect_ratio: target_ratio = "1:1"
+                
+                log_func(f">>> [Luồng {index}] Đang chọn Khung hình: {target_ratio}")
+                page.locator("button").filter(has_text=target_ratio).first.click(force=True); time.sleep(1)
                 
                 # Chọn x1
                 btn_x1 = page.get_by_text("x1", exact=True).first or page.locator("button").filter(has_text="x1").first
                 if btn_x1.is_visible():
                     btn_x1.click(force=True); time.sleep(1)
                 
-                # Chọn Model: Veo 3.1 - Lite
+                # CHỌN MODEL
+                log_func(f">>> [Luồng {index}] Đang chọn Model: {veo_model}")
                 try:
-                    # Tìm nút dropdown model (thường có chữ Veo 3.1)
                     model_dropdown = page.locator("button[aria-haspopup='menu']").filter(has_text="Veo").first
                     if model_dropdown.is_visible():
                         model_dropdown.click(); time.sleep(1.5)
-                        # Click chọn Lite
-                        page.get_by_text("Veo 3.1 - Lite", exact=True).first.click()
+                        page.get_by_text(veo_model, exact=True).first.click()
                         time.sleep(1)
                 except Exception as e:
-                    log_func(f"⚠ Không thể chọn Model Veo 3.1 - Lite: {e}")
+                    log_func(f"⚠ Không thể chọn Model {veo_model}: {e}")
                 
                 page.keyboard.press("Escape"); time.sleep(3)
 
@@ -429,7 +442,7 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
             browser.close()
             return downloaded_file
 
-def run_multi_parallel(prompts, cookies_raw, log_func=print, headless=True, max_workers=5, st_context=None, network_profile=None, proxies=None):
+def run_multi_parallel(prompts, cookies_raw, log_func=print, headless=True, max_workers=5, st_context=None, network_profile=None, proxies=None, aspect_ratio="9:16", veo_model="Veo 3.1 - Lite"):
     """Chạy song song nhiều cửa sổ Chrome với hỗ trợ Streamlit Context"""
     from streamlit.runtime.scriptrunner_utils.script_run_context import add_script_run_ctx
     log_func(f"\n--- KÍCH HOẠT CHẾ ĐỘ SONG SONG ({len(prompts)} LUỒNG) ---")
@@ -443,7 +456,7 @@ def run_multi_parallel(prompts, cookies_raw, log_func=print, headless=True, max_
             add_script_run_ctx(st_context)
         
         proxy_url = proxies[(idx - 1) % len(proxies)] if len(proxies) > 0 else None
-        return run_single_generation(p, cookies_raw, idx, log_func, headless, network_profile, proxy_url)
+        return run_single_generation(p, cookies_raw, idx, log_func, headless, network_profile, proxy_url, aspect_ratio, veo_model)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
