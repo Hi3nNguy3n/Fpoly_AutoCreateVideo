@@ -111,7 +111,32 @@ with st.sidebar:
     st.markdown("### CONFIGURATION")
     
     gemini_key = st.text_input("Gemini API Key", type="password")
-    cookies_input = st.text_area("Google Cookies", height=150)
+    
+    st.markdown("---")
+    st.markdown("**🔑 Google Accounts (Cookies)**")
+    
+    if "cookie_list" not in st.session_state:
+        st.session_state.cookie_list = [""]
+        
+    # UI cho từng account
+    updated_cookies = []
+    for i, cookie in enumerate(st.session_state.cookie_list):
+        col_c1, col_c2 = st.columns([4, 1])
+        with col_c1:
+            val = st.text_area(f"Account {i+1}", value=cookie, height=100, key=f"cookie_input_{i}", label_visibility="collapsed")
+            updated_cookies.append(val)
+        with col_c2:
+            if st.button("❌", key=f"del_cookie_{i}"):
+                st.session_state.cookie_list.pop(i)
+                st.rerun()
+    
+    st.session_state.cookie_list = updated_cookies
+
+    if st.button("➕ Thêm tài khoản", use_container_width=True):
+        st.session_state.cookie_list.append("")
+        st.rerun()
+    
+    st.markdown("---")
     
     with st.expander("🎬 Cấu hình Video (Premium)", expanded=True):
         st.write("**📐 Tỷ lệ khung hình:**")
@@ -239,8 +264,9 @@ if st.session_state.scripts:
             status_placeholder.markdown(log_html, unsafe_allow_html=True)
 
         if launch_btn:
-            if not cookies_input:
-                st.error("❌ Thiếu Cookies!")
+            valid_cookies = [c for c in st.session_state.cookie_list if c.strip()]
+            if not valid_cookies:
+                st.error("❌ Thiếu Cookies! Vui lòng nhập ít nhất 1 tài khoản.")
             else:
                 with st.spinner("Robot đang thực thi..."):
                     video_files = []
@@ -251,14 +277,17 @@ if st.session_state.scripts:
                     if "9:16" in video_size: ratio_val = "9:16"
                     elif "1:1" in video_size: ratio_val = "1:1"
 
+                    current_cookie_idx = 0
+                    
                     if parallel_mode:
+                        # Chế độ song song sẽ dùng chung list cookies và xoay vòng cơ bản
                         from streamlit.runtime.scriptrunner_utils.script_run_context import get_script_run_ctx
                         video_files = run_multi_parallel(
                             prompts=modified_scripts,
-                            cookies_raw=cookies_input,
+                            cookies_list=valid_cookies,
                             log_func=update_logs,
                             headless=not show_browser,
-                            st_context=curr_context,
+                            st_context=get_script_run_ctx(),
                             network_profile=network_profile,
                             proxies=proxy_list,
                             aspect_ratio=ratio_val,
@@ -266,10 +295,29 @@ if st.session_state.scripts:
                         )
                     else:
                         for i, p in enumerate(modified_scripts):
-                            proxy_url = proxy_list[i % len(proxy_list)] if proxy_list else None
-                            update_logs(f"🎬 Đang xử lý phân cảnh {i+1}/5...")
-                            f = run_single_generation(p, cookies_input, i+1, update_logs, not show_browser, network_profile, proxy_url, ratio_val, veo_model_choice)
-                            if f: video_files.append(f)
+                            success = False
+                            # Vòng lặp thử tài khoản nếu bị giới hạn
+                            while current_cookie_idx < len(valid_cookies) and not success:
+                                proxy_url = proxy_list[i % len(proxy_list)] if proxy_list else None
+                                current_cookie = valid_cookies[current_cookie_idx]
+                                
+                                update_logs(f"🎬 [Acc {current_cookie_idx + 1}] Đang xử lý phân cảnh {i+1}/5...")
+                                result = run_single_generation(p, current_cookie, i+1, update_logs, not show_browser, network_profile, proxy_url, ratio_val, veo_model_choice)
+                                
+                                if result == "QUOTA_EXCEEDED":
+                                    update_logs(f"⚠️ [Acc {current_cookie_idx + 1}] Đã hết lượt (Quota Limit)! Đang đổi sang tài khoản tiếp theo...")
+                                    current_cookie_idx += 1
+                                    continue
+                                elif result:
+                                    video_files.append(result)
+                                    success = True
+                                else:
+                                    # Lỗi khác không phải Quota, vẫn thử lại với acc khác cho chắc hoặc bỏ qua
+                                    update_logs(f"❌ [Acc {current_cookie_idx + 1}] Lỗi không xác định. Thử lại với tài khoản tiếp theo...")
+                                    current_cookie_idx += 1
+                            
+                            if not success:
+                                update_logs(f"❌ Phân cảnh {i+1} thất bại hoàn toàn (Hết tài khoản khả dụng).")
 
                     if len(video_files) >= 2:
                         update_logs("🔄 Đang ghép phim...")

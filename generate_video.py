@@ -305,7 +305,17 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
             editor.type(final_prompt, delay=100, timeout=180000) 
 
                 
-            time.sleep(1); page.keyboard.press("Enter")
+            time.sleep(1); 
+            
+            # Kiểm tra xem nút gửi có biến thành nút báo hết tín dụng không
+            # Dựa trên HTML: có ảnh flow_alert_sphere.svg hoặc icon info
+            info_indicator = page.locator("img[src*='flow_alert_sphere'], i:has-text('info')").first
+            if info_indicator.is_visible(timeout=2000):
+                log_func(f"⚠️ [Luồng {index}] Phát hiện biểu tượng cảnh báo (flow_alert_sphere). Tài khoản này đã hết tín dụng!")
+                browser.close()
+                return "QUOTA_EXCEEDED"
+
+            page.keyboard.press("Enter")
             send = page.locator("button").filter(has_text="arrow_forward").first
             if send.is_visible(): send.click()
             log_func(f">>> [Luồng {index}] Đã gửi xong prompt. Đang render...")
@@ -334,10 +344,23 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
                             error_selectors = [
                                 "text='Không thành công'",
                                 "text='unusual activity'",
-                                "text='Unsuccessful'"
+                                "text='Unsuccessful'",
+                                "text='daily limit'",
+                                "text='reached the limit'",
+                                "text='đạt giới hạn'",
+                                "text='hết lượt'",
+                                "text='quota'",
+                                "text='tín dụng AI'",
+                                "text='Bạn cần có thêm tín dụng AI'"
                             ]
                             for err_sel in error_selectors:
                                 if page.locator(err_sel).first.is_visible(timeout=200):
+                                    msg = page.locator(err_sel).first.inner_text().lower()
+                                    if any(q in msg for q in ['limit', 'giới hạn', 'hết lượt', 'quota', 'activity', 'tín dụng', 'nâng cấp']):
+                                        log_func(f"⚠️ [Luồng {index}] Phát hiện lỗi giới hạn/tín dụng: {msg}")
+                                        browser.close()
+                                        return "QUOTA_EXCEEDED"
+                                    
                                     log_func(f"⚠ [Luồng {index}] Phát hiện thẻ báo lỗi. Đang tự động thử lại...")
                                     retry_btn = page.locator("button:has(i:has-text('refresh')), button:has(span:has-text('refresh')), button[aria-label*='retry']").first
                                     if retry_btn.is_visible(timeout=500):
@@ -442,8 +465,8 @@ def run_single_generation(prompt, cookies_raw, index=0, log_func=print, headless
             browser.close()
             return downloaded_file
 
-def run_multi_parallel(prompts, cookies_raw, log_func=print, headless=True, max_workers=5, st_context=None, network_profile=None, proxies=None, aspect_ratio="9:16", veo_model="Veo 3.1 - Lite"):
-    """Chạy song song nhiều cửa sổ Chrome với hỗ trợ Streamlit Context"""
+def run_multi_parallel(prompts, cookies_list, log_func=print, headless=True, max_workers=5, st_context=None, network_profile=None, proxies=None, aspect_ratio="9:16", veo_model="Veo 3.1 - Lite"):
+    """Chạy song song nhiều cửa sổ Chrome với hỗ trợ Streamlit Context và xoay vòng Cookies"""
     from streamlit.runtime.scriptrunner_utils.script_run_context import add_script_run_ctx
     log_func(f"\n--- KÍCH HOẠT CHẾ ĐỘ SONG SONG ({len(prompts)} LUỒNG) ---")
     
@@ -456,7 +479,10 @@ def run_multi_parallel(prompts, cookies_raw, log_func=print, headless=True, max_
             add_script_run_ctx(st_context)
         
         proxy_url = proxies[(idx - 1) % len(proxies)] if len(proxies) > 0 else None
-        return run_single_generation(p, cookies_raw, idx, log_func, headless, network_profile, proxy_url, aspect_ratio, veo_model)
+        # Xoay vòng cookie dựa trên index của prompt
+        current_cookie = cookies_list[(idx - 1) % len(cookies_list)]
+        
+        return run_single_generation(p, current_cookie, idx, log_func, headless, network_profile, proxy_url, aspect_ratio, veo_model)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
